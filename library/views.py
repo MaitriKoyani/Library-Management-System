@@ -1,11 +1,15 @@
 from django.shortcuts import render,redirect
-from django.http import HttpResponse,JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+# from django.http import HttpResponse,JsonResponse
+# from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login,logout
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password,make_password
 from rest_framework.parsers import JSONParser
 from rest_framework.views import APIView
+# from rest_framework.permissions import IsAuthenticated
+# from .models import CustomTokenAuthentication
+# from rest_framework.authtoken.models import Token
+from .models import MemberToken,LibrarianToken
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Book,Member,History,Librarian
@@ -16,41 +20,60 @@ from datetime import datetime
 
 class RegisterMemberView(APIView):
     def post(self, request):
-        serializer = MemberSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        data=request.data
+        if data:
+            member=Member.objects.create(
+                name=data['name'],
+                email=data['email'],
+                password=make_password(data['password']),)
+            serializer = MemberSerializer(member)
             login(request, serializer.instance)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class LoginView(APIView):
     def get(self, request):
-        return Response({"status": "success"})
+        return Response(status=status.HTTP_200_OK)
     def post(self, request):
         name = request.data.get('name')
-        password = request.data.get('password')
+        passwor = request.data.get('password')
         member = Member.objects.filter(name=name).first()
         librarian = Librarian.objects.filter(name=name).first()
         if member:
-            password = check_password(password, member.password)
-            login(request, member)
-            return Response({"status": "success"})
+            password = check_password(passwor, member.password)
+            if password:
+                token = MemberToken.objects.filter(member=member).first()
+                if token:
+                    token.delete()
+                
+                token = MemberToken.objects.create(member=member)
+                login(request, member)
+                return Response({'token':token.token},status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
         elif librarian:
             password = check_password(password, librarian.password)
-            login(request, librarian)
-            return Response({"status": "success"})
-        return Response({"status": "failed"})
+            if password:    
+                token = LibrarianToken.objects.filter(librarian=librarian).first()
+                if token:
+                    token.delete()
+                token = LibrarianToken.objects.get_or_create(librarian=librarian)
+                login(request, librarian)
+                return Response({'token':token.token},status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 class LogoutView(APIView):
     def get(self, request):
+        token = request.auth
+        if token:
+            token.delete()
         logout(request)
-        return Response({"status": "success"})
+        return Response(status=status.HTTP_200_OK)
 
 
 class BookList(APIView):
     def get(self, request):
         books = Book.objects.filter(is_book=True).all()
-        print(books)
         serializer = BookSerializer(books,many=True)
         return Response(serializer.data,status=status.HTTP_200_OK)
     
@@ -73,7 +96,7 @@ class BookDetail(APIView):
         if book is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = BookSerializer(book)
-        return Response(serializer.data)
+        return Response(serializer.data,status=status.HTTP_200_OK)
 
     def put(self, request, pk):
         book = self.get_object(pk)
@@ -82,7 +105,7 @@ class BookDetail(APIView):
         serializer = BookSerializer(book, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(serializer.data,status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
@@ -91,24 +114,29 @@ class BookDetail(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         book.delete() # There is no deletion of book just is_user=False
         return Response(status=status.HTTP_204_NO_CONTENT)
-@login_required
+
 class MemberList(APIView):
     def get(self, request):
         members = Member.objects.filter(is_user=True).all()
         serializer = MemberSerializer(members, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data,status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = MemberSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        data=request.data
+        if data:
+            member=Member.objects.create(
+                name=data['name'],
+                email=data['email'],
+                password=make_password(data['password']),)
+            serializer = MemberSerializer(member)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({"message":"data not provided",'require':'name,email,password'}, status=status.HTTP_400_BAD_REQUEST)
 
 class MemberDetail(APIView):
     def get_object(self, pk):
         try:
-            return Member.objects.get(pk=pk)
+            return Member.objects.get(pk=pk,is_user=True)
         except Member.DoesNotExist:
             return None
 
@@ -117,7 +145,7 @@ class MemberDetail(APIView):
         if member is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = MemberSerializer(member)
-        return Response(serializer.data)
+        return Response(serializer.data,status=status.HTTP_200_OK)
 
     def put(self, request, pk):
         member = self.get_object(pk)
@@ -126,7 +154,7 @@ class MemberDetail(APIView):
         serializer = MemberSerializer(member, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(serializer.data,status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
@@ -138,29 +166,37 @@ class MemberDetail(APIView):
 
 class HistoryList(APIView):
     def get(self, request):
-        issuedbooks = History.objects.all()
-        serializer = HistorySerializer(issuedbooks, many=True)
-        return Response(serializer.data)
+        print(request.user.id)
+        if request.user.id:
+            issuedbooks = History.objects.all()
+            serializer = HistorySerializer(issuedbooks, many=True)
+            return Response(serializer.data,status=status.HTTP_200_OK)
+        else:
+            return Response({'message':'User is not logged in'},status=status.HTTP_401_UNAUTHORIZED)
+
 
 class HistoryDetail(APIView):
+
     def post(self, request,pk):
-        if request.user.is_authenticated:
-            member = request.user.id
-            member = Member.objects.get(id=member)
-            book = Book.objects.get(id=pk)
-            if request.data['action'] == 'issue':
+        member=Member.objects.filter(name=request.user).first()
+        if member:
+            book = Book.objects.filter(id=pk).first()
+            if request.data['action'] == 'issue' and book!=None:
                 action='issued'
                 res = book.issue_book(member)
                 if res:
-                    return Response(status=status.HTTP_201_CREATED)
+                    return Response({'message':'Book is issued'},status=status.HTTP_201_CREATED)
                 return Response(status=status.HTTP_400_BAD_REQUEST)
-            elif request.data['action'] == 'return':
+            elif request.data['action'] == 'return' and book!=None:
                 action='returned'
-                res = book.return_book(member)
+                msg,res = book.return_book(member)
                 if res:
-                    return Response(status=status.HTTP_201_CREATED)
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-        return redirect('login')        
+                    return Response({'message':msg},status=status.HTTP_201_CREATED)
+                return Response({'message':msg},status=status.HTTP_200_OK)
+            return Response({'message':'Book not found'},status=status.HTTP_404_NOT_FOUND)
+        return Response({'message':'Member not found'},status=status.HTTP_401_UNAUTHORIZED)      
+    def get(self, request): 
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 class MemberHistory(APIView):
     def get_object(self, pk):
@@ -173,33 +209,37 @@ class MemberHistory(APIView):
         history = self.get_object(pk)
         if history is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = HistorySerializer(history)
-        return Response(serializer.data)
+        serializer = HistorySerializer(history, many=True)
+        return Response(serializer.data,status=status.HTTP_200_OK)
 
 class BookHistory(APIView):
     def get_object(self, pk):
         try:
             return History.objects.filter(book=pk).all() 
-        except History.DoesNotExist:
-            return None
+        except History.DoesNotExist as e:
+            return Response({'error':e},status=status.HTTP_404_NOT_FOUND)
 
     def get(self, request, pk):
         history = self.get_object(pk)
         if history is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = HistorySerializer(history)# many=True
-        return Response(serializer.data)
+        serializer = HistorySerializer(history,many=True)
+        return Response(serializer.data,status=status.HTTP_200_OK)
 
 class LibrarianList(APIView):
     def get(self, request):
-        librarians = Member.objects.filter(is_active=True).first()
+        librarians = Librarian.objects.filter(is_active=True).first()
         serializer = LibrarianSerializer(librarians, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data,status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = LibrarianSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
+        data=request.data
+        if data:
+            member=Librarian.objects.create(
+                name=data['name'],
+                email=data['email'],
+                password=make_password(data['password']),)
+            serializer = LibrarianSerializer(member)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -216,7 +256,7 @@ class LibrarianDetail(APIView):
         if librarian is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = LibrarianSerializer(librarian)
-        return Response(serializer.data)
+        return Response(serializer.data,status=status.HTTP_200_OK)
     
     def put(self, request, pk):
         librarian = self.get_object(pk)
@@ -225,7 +265,7 @@ class LibrarianDetail(APIView):
         serializer = LibrarianSerializer(librarian, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(serializer.data,status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):

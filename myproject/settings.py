@@ -15,6 +15,7 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# AUTH_USER_MODEL = 'library.Member'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -25,7 +26,7 @@ SECRET_KEY = 'django-insecure-b@uhe+s_z=9nzq2=3d5ww%ujr07cneiu-q_g3t91n!+%lp6p!-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['6ebf-2401-4900-8815-2f89-70d9-5a8c-482f-75ee.ngrok-free.app','127.0.0.1']
 
 
 # Application definition
@@ -39,7 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'library',
     'rest_framework',
+    'rest_framework.authtoken'
 ]
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -123,3 +126,19 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://7b99-2401-4900-8815-2f89-7552-d36a-7eed-1c5f.ngrok-free.app',
+    'http://7b99-2401-4900-8815-2f89-7552-d36a-7eed-1c5f.ngrok-free.app',
+]
+
+# Add CORS settings if using Postman
+CORS_ORIGIN_ALLOW_ALL = True
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'library.models.CustomTokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    
+}
