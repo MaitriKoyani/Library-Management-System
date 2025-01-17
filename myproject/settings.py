@@ -26,7 +26,14 @@ SECRET_KEY = 'django-insecure-b@uhe+s_z=9nzq2=3d5ww%ujr07cneiu-q_g3t91n!+%lp6p!-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['6ebf-2401-4900-8815-2f89-70d9-5a8c-482f-75ee.ngrok-free.app','127.0.0.1']
+ALLOWED_HOSTS = ['577d-2401-4900-8817-f041-a487-f2f1-ebc5-9925.ngrok-free.app','127.0.0.1']
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # or other session backend
+SESSION_COOKIE_NAME = 'sessionid'  # default cookie name
+SESSION_COOKIE_AGE = 3600  # duration in seconds (default is 300 seconds)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # session will not expire on browser close
+SESSION_COOKIE_SECURE = False  # Set to True if you're using HTTPS
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 
 # Application definition
@@ -40,18 +47,21 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'library',
     'rest_framework',
-    'rest_framework.authtoken'
+    'rest_framework.authtoken',
+    'corsheaders',#optional
 ]
 
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
 ]
 
 ROOT_URLCONF = 'myproject.urls'
@@ -120,7 +130,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -129,16 +139,27 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CSRF_TRUSTED_ORIGINS = [
     'https://7b99-2401-4900-8815-2f89-7552-d36a-7eed-1c5f.ngrok-free.app',
-    'http://7b99-2401-4900-8815-2f89-7552-d36a-7eed-1c5f.ngrok-free.app',
+    'https://577d-2401-4900-8817-f041-a487-f2f1-ebc5-9925.ngrok-free.app',
 ]
+
 
 # Add CORS settings if using Postman
 CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOWED_ORIGINS = [
+    'http://127.0.0.1:8000',  
+    
+]
+CORS_ALLOW_CREDENTIALS = True
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'library.models.CustomTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
     ],
     
 }
+
+AUTHENTICATION_BACKENDS = [
+    'library.models.MemberAuthBackend',
+]

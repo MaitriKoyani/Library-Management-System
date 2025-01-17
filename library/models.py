@@ -44,18 +44,18 @@ class Book(models.Model):
         return False
 
     def return_book(self, member):
-        history = History.objects.filter(member=member, book=self, action='returned').last()
-        issue = History.objects.filter(member=member, book=self, action='issued').last()
-        if not history and issue:
+        history = History.objects.filter(member=member, book=self).last()
+        action = history.action
+        if action == 'issued':
             self.available_copies += 1
             self.save()
             History.objects.create(member=member, book=self, action='returned', return_date=timezone.now())
             msg='Book is returned'
             return msg , True
-        elif not issue:
-            msg='Book is not issued'
+        elif action == 'returned':
+            msg='Book is already returned'
             return msg , False
-        msg='Book is already returned'
+        msg='Book is not issued'
         return msg , False
 
 
@@ -67,28 +67,21 @@ class Book(models.Model):
 
     def __str__(self):
         return self.title
-# class MemberManager(BaseUserManager):
-#     def create_user(self, email, password=None, **extra_fields):
-#         if not email:
-#             raise ValueError('The Email field must be set')
-#         email = self.normalize_email(email)
-#         user = self.model(email=email, **extra_fields)
-#         user.set_password(password)
-#         user.save(using=self._db)
-#         return user
     
     
 class Member(models.Model):
     name = models.CharField(max_length=100,unique=True)
     password = models.CharField(max_length=100,null=False)
     email = models.EmailField(unique=True)
-    is_user=models.BooleanField(default=True)
+    is_active=models.BooleanField(default=True)
     last_login = models.DateTimeField(blank=True, null=True)
-
-    # objects = MemberManager()
 
     USERNAME_FIELD = 'name'
     REQUIRED_FIELDS = []
+
+    @property
+    def is_authenticated(self):
+        return True
 
     def delete(self, *args, **kwargs):
         self.is_user = False
@@ -132,23 +125,42 @@ class LibrarianToken(models.Model):
 
 class CustomTokenAuthentication(BaseAuthentication):
     def authenticate(self, request):
-        # Get the token from the Authorization header
-        token = request.headers.get('Authorization')
-
+        
+        token = request.session.get('token')
+        
         if not token:
-            return None  # No token is provided, proceed with normal processing
-
+            return None  
         if token.startswith('Token '):
-            token = token[6:]  # Remove 'Bearer ' prefix
+            token = token[6:]  
 
         try:
-            # Check if the token exists in the MemberToken model
-            token = MemberToken.objects.filter(token=token).first()
+            mtoken = MemberToken.objects.filter(token=token).first()
+            if mtoken:
+                return (mtoken.member, mtoken)
+            else:
+                ltoken = LibrarianToken.objects.filter(token=token).first()
+                if ltoken:
+                    return (ltoken.librarian, ltoken)
+                else:
+                    return None
 
-            return (token.member, token)
-        except MemberToken.DoesNotExist:
-            try:
-                token = LibrarianToken.objects.filter(token=token).first()
-                return (token.librarian, token)
-            except LibrarianToken.DoesNotExist:
-                raise AuthenticationFailed('Invalid or expired token.')
+        except Exception as e:  
+            raise AuthenticationFailed('Invalid or expired token.',e)
+        
+from django.contrib.auth.backends import BaseBackend
+from django.contrib.auth.hashers import check_password
+
+class MemberAuthBackend(BaseBackend):
+    def authenticate(self, request, username=None, password=None):
+        try:
+            member = Member.objects.get(name=username)
+            if check_password(password, member.password):  # Use hashed passwords
+                return member
+        except Member.DoesNotExist:
+            return None
+
+    def get_user(self, user_id):
+        try:
+            return Member.objects.get(pk=user_id)
+        except Member.DoesNotExist:
+            return None
