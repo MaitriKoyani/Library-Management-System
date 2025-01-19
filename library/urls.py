@@ -22,7 +22,4 @@ urlpatterns = [
     path('login/', TemplateView.as_view(template_name='home.html'), name='login'),
     path('logout/', TemplateView.as_view(template_name='home.html'), name='logout'),
 
-    path('get/', views.getsession, name='get'),
-    path('set/', views.setsession, name='set'),
-
 ]

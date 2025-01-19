@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-b@uhe+s_z=9nzq2=3d5ww%ujr07cneiu-q_g3t91n!+%lp6p!-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['577d-2401-4900-8817-f041-a487-f2f1-ebc5-9925.ngrok-free.app','127.0.0.1']
+ALLOWED_HOSTS = ['3141-2401-4900-8817-f041-b8b9-2afd-b24e-541f.ngrok-free.app','127.0.0.1']
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # or other session backend
 SESSION_COOKIE_NAME = 'sessionid'  # default cookie name
@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'library.models.CustomTokenMiddleware'
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -138,8 +139,9 @@ STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://7b99-2401-4900-8815-2f89-7552-d36a-7eed-1c5f.ngrok-free.app',
-    'https://577d-2401-4900-8817-f041-a487-f2f1-ebc5-9925.ngrok-free.app',
+    'http://127.0.0.1:8000',
+    'https://3141-2401-4900-8817-f041-b8b9-2afd-b24e-541f.ngrok-free.app',
+    
 ]
 
 
@@ -154,12 +156,12 @@ CORS_ALLOW_CREDENTIALS = True
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
+        'library.models.CustomTokenAuthentication',
     ],
     
 }
 
 AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
     'library.models.MemberAuthBackend',
 ]

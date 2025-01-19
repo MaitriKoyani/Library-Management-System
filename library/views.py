@@ -12,26 +12,31 @@ from .models import CustomTokenAuthentication
 from .models import MemberToken,LibrarianToken
 from rest_framework.response import Response
 from rest_framework import status
+from django.contrib.sessions.models import Session
 from .models import Book,Member,History,Librarian
 from .serializers import *
-from .decorators import login_required,librarian_view_only
+from .decorators import login_required,librarian_view_only,check_login
 from django.utils.decorators import method_decorator
 from datetime import datetime
 
 
 # Create your views here.
 
-def setsession(request):
-    request.session['key1'] = 'value1'
-    print(request.session['key1'],'set')
-    return HttpResponse({'message':'session set'})
-def getsession(request):
-    print(request)
-    print(request.session.items())
-    print(request.session['key1'],'get')
-    request.user=request.session['key1']
-    print(request.user)
-    return HttpResponse({'not':'1'})
+def setcookietoken(token):
+    expires = datetime.utcnow() + timedelta(days=1)
+    response = Response()
+    response.set_cookie(
+        'token',
+        token.token,
+        expires=expires,
+        httponly=True,
+        secure=False,#make true when in production
+        samesite='Lax',
+        path='/'
+    )
+    return response
+
+@method_decorator(check_login, name='dispatch')
 class RegisterMemberView(APIView):
     def post(self, request):
         data=request.data
@@ -41,25 +46,14 @@ class RegisterMemberView(APIView):
                 email=data['email'],
                 password=make_password(data['password']),)
             serializer = MemberSerializer(member)
-            login(request, serializer.instance)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    def post(self, request):
-        data=request.data
-        if data:
-            member=Member.objects.create(
-                name=data['name'],
-                email=data['email'],
-                password=make_password(data['password']),)
-            serializer = MemberSerializer(member)
             token = MemberToken.objects.filter(member=member).first()
-            if token:
-                token.delete()
-            token = MemberToken.objects.create(member=member)
-            login(request, member)
-            return Response({'token':token.token,'member':serializer.data}, status=status.HTTP_201_CREATED)
+            res = setcookietoken(token)
+            res.status_code = status.HTTP_201_CREATED
+            res.data = serializer.data
+            return res
         return Response({"message":"data not provided",'require':'name,email,password'}, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(check_login, name='dispatch')
 class RegisterLibrarianView(APIView):
     def post(self, request):
         data=request.data
@@ -69,47 +63,43 @@ class RegisterLibrarianView(APIView):
                 email=data['email'],
                 password=make_password(data['password']),)
             serializer = LibrarianSerializer(librarian)
-            token = LibrarianToken.objects.filter(librarian=librarian).first()
-            if token:
-                token.delete()
+            
             token = LibrarianToken.objects.create(librarian=librarian)
-            login(request, librarian)
-            return Response({'token':token.token,'librarian':serializer.data}, status=status.HTTP_201_CREATED)
+            res = setcookietoken(token)
+            res.status_code = status.HTTP_201_CREATED
+            res.data = serializer.data
+            return res
         return Response({"message":"data not provided",'require':'name,email,password'}, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(check_login, name='dispatch')
 class LoginView(APIView):
     def get(self, request):
         return Response(status=status.HTTP_200_OK)
     def post(self, request):
+        
         name = request.data.get('name')
         passwor = request.data.get('password')
         member = Member.objects.filter(name=name).first()
         librarian = Librarian.objects.filter(name=name).first()
-        if member:
-            password = check_password(passwor, member.password)
-            if password:
-                token = MemberToken.objects.filter(member=member).first()
-                if token:
-                    token.delete()
-                token = MemberToken.objects.create(member=member)
-                login(request, member)
-                request.session['token'] = str(token.token)
-                request.session['username'] = member.name
-                request.session.set_expiry(3600)
-                serializer = MemberTokenSerializer(token)
-                print(serializer.data)
-                return Response(serializer.data,status=status.HTTP_200_OK)
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        elif librarian:
+        
+        if librarian:
             password = check_password(passwor, librarian.password)
             if password:    
-                token = LibrarianToken.objects.filter(librarian=librarian).first()
-                if token:
-                    token.delete()
-                token = LibrarianToken.objects.create(librarian=librarian)
                 
-                login(request, librarian)
-                return Response({'token':token.token},status=status.HTTP_200_OK)
+                token = LibrarianToken.objects.create(librarian=librarian)
+                res = setcookietoken(token)
+                res.status_code = status.HTTP_200_OK
+                return res
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        elif member:
+            
+            password = check_password(passwor, member.password)
+            if password:
+                
+                token = MemberToken.objects.create(member=member)
+                res = setcookietoken(token)
+                res.status_code = status.HTTP_200_OK
+                return res
             return Response(status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_404_NOT_FOUND)
     
@@ -117,14 +107,16 @@ class LoginView(APIView):
 class LogoutView(APIView):
     def get(self, request):
         try:
-            request.session.flush()
-            logout(request)
-            return Response({'message':'Successfully logged out'},status=status.HTTP_200_OK)
+            res = Response({'message':'Successfully logged out'},status=status.HTTP_200_OK)
+            res.delete_cookie('token')
+            return res
         except Exception as e:
             return Response({'error':e},status=status.HTTP_400_BAD_REQUEST)
 
 class BookList(APIView):
     def get(self, request):
+        print(request)
+        print('book',request.user)
         books = Book.objects.filter(is_book=True).all()
         serializer = BookSerializer(books,many=True)
         return Response(serializer.data,status=status.HTTP_200_OK)
@@ -212,8 +204,9 @@ class MemberDetail(APIView):
 
 @method_decorator(librarian_view_only, name='dispatch')
 class HistoryList(APIView):
-    def get(self, request,pk):
+    def get(self, request):
         try:
+            print('history',request.user)
             issuedbooks = History.objects.all()
             serializer = HistorySerializer(issuedbooks, many=True)
             return Response(serializer.data,status=status.HTTP_200_OK)
@@ -250,11 +243,13 @@ class HistoryDetail(APIView):
 class MemberHistory(APIView):
     def get_object(self,id):
         try:
+            
             return History.objects.filter(member=id).all()
         except History.DoesNotExist as e:
             return Response({'error':e},status=status.HTTP_404_NOT_FOUND)
 
     def get(self, request):
+        print('history member',request.user)
         history = self.get_object(request.user.id)
         if history is None:
             return Response(status=status.HTTP_404_NOT_FOUND)

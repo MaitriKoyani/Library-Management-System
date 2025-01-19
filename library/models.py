@@ -125,15 +125,17 @@ class LibrarianToken(models.Model):
 
 class CustomTokenAuthentication(BaseAuthentication):
     def authenticate(self, request):
+        print('enter auth')
         
-        token = request.session.get('token')
+        token = request.COOKIES.get('token')
         
         if not token:
             return None  
         if token.startswith('Token '):
             token = token[6:]  
-
+        
         try:
+            
             mtoken = MemberToken.objects.filter(token=token).first()
             if mtoken:
                 return (mtoken.member, mtoken)
@@ -147,20 +149,58 @@ class CustomTokenAuthentication(BaseAuthentication):
         except Exception as e:  
             raise AuthenticationFailed('Invalid or expired token.',e)
         
-from django.contrib.auth.backends import BaseBackend
-from django.contrib.auth.hashers import check_password
+# from django.contrib.auth.backends import BaseBackend
+# from django.contrib.auth.hashers import check_password
 
-class MemberAuthBackend(BaseBackend):
-    def authenticate(self, request, username=None, password=None):
-        try:
-            member = Member.objects.get(name=username)
-            if check_password(password, member.password):  # Use hashed passwords
-                return member
-        except Member.DoesNotExist:
-            return None
+# class MemberAuthBackend(BaseBackend):
+#     def authenticate(self, request, username=None, password=None):
+#         try:
+            
+#             member = Member.objects.get(name=username)
+#             librarian = Librarian.objects.get(name=username)
+#             if member:
+#                 if check_password(password, member.password):  # Use hashed passwords
+#                     return member
+#             elif librarian:
+#                 if check_password(password, librarian.password):  # Use hashed passwords
+#                     return librarian
+#         except Member.DoesNotExist or Librarian.DoesNotExist:
+#             return None
 
-    def get_user(self, user_id):
+#     def get_user(self, user_id):
+#         try:
+#             print('enter in back',)
+#             return Member.objects.get(pk=user_id)
+            
+#         except Member.DoesNotExist :
+#             return None
+
+from django.utils.deprecation import MiddlewareMixin
+from rest_framework.exceptions import AuthenticationFailed
+
+class CustomTokenMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        # Check for token in the request (header, cookie, etc.)
+        print('enter auth')
+        
+        token = request.COOKIES.get('token')
+        
+        if not token:
+            return None  
+        if token.startswith('Token '):
+            token = token[6:]  
+        
         try:
-            return Member.objects.get(pk=user_id)
-        except Member.DoesNotExist:
-            return None
+            
+            mtoken = MemberToken.objects.filter(token=token).first()
+            if mtoken:
+                request.user = mtoken.member
+            else:
+                ltoken = LibrarianToken.objects.filter(token=token).first()
+                if ltoken:
+                    request.user = ltoken.librarian
+                else:
+                    return None
+
+        except Exception as e:  
+            raise AuthenticationFailed('Invalid or expired token.',e)
