@@ -4,3 +4,4 @@ myproject/__init__.py
 library/__pycache__/
 library/__init__.py
 library/migrations/
+.env

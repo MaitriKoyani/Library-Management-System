@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +27,7 @@ SECRET_KEY = 'django-insecure-b@uhe+s_z=9nzq2=3d5ww%ujr07cneiu-q_g3t91n!+%lp6p!-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['3141-2401-4900-8817-f041-b8b9-2afd-b24e-541f.ngrok-free.app','127.0.0.1']
+ALLOWED_HOSTS = ['e9d7-2401-4900-8817-f041-bde5-afaa-959f-6a8.ngrok-free.app','127.0.0.1']
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # or other session backend
 SESSION_COOKIE_NAME = 'sessionid'  # default cookie name
@@ -57,7 +58,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'library.models.CustomTokenMiddleware'
+    'library.middleware.custome_middleware.CustomTokenMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -140,7 +141,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
-    'https://3141-2401-4900-8817-f041-b8b9-2afd-b24e-541f.ngrok-free.app',
+    'https://e9d7-2401-4900-8817-f041-bde5-afaa-959f-6a8.ngrok-free.app',
     
 ]
 
@@ -163,5 +164,17 @@ REST_FRAMEWORK = {
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'library.models.MemberAuthBackend',
+    # 'library.models.MemberAuthBackend',
 ]
+
+from dotenv import load_dotenv
+load_dotenv()
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = True
+EMAIL_PORT = 465
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

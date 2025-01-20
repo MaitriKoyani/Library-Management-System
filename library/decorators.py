@@ -3,15 +3,13 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 from rest_framework import status
 from .models import CustomTokenAuthentication,Librarian
-from rest_framework.request import Request
 from rest_framework.decorators import authentication_classes
 
 @authentication_classes([CustomTokenAuthentication])
 def check_login(view_func):
     @wraps(view_func) 
     def wrapper(request, *args, **kwargs):
-        print(request)
-        request = Request(request)
+        
         print(request)
         print(request.user)
         if not request.user.id:
@@ -34,7 +32,7 @@ def check_login(view_func):
 def login_required(view_func):
     @wraps(view_func) 
     def wrapper(request, *args, **kwargs):
-        request = Request(request)
+        print(request.user,'login')
         if not request.user.id:
             try:
                 print('enter login')
@@ -53,7 +51,6 @@ def login_required(view_func):
 def librarian_view_only(view_func):
     @wraps(view_func) 
     def wrapper(request, *args, **kwargs):
-        request = Request(request)
         if request.user :
             print('enter for librarian')
             lib = Librarian.objects.filter(name=request.user,is_active=True).first()

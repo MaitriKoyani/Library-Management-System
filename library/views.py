@@ -17,6 +17,8 @@ from .models import Book,Member,History,Librarian
 from .serializers import *
 from .decorators import login_required,librarian_view_only,check_login
 from django.utils.decorators import method_decorator
+from django.core.mail import send_mail
+from django.conf import settings
 from datetime import datetime
 
 
@@ -46,7 +48,7 @@ class RegisterMemberView(APIView):
                 email=data['email'],
                 password=make_password(data['password']),)
             serializer = MemberSerializer(member)
-            token = MemberToken.objects.filter(member=member).first()
+            token = MemberToken.objects.create(member=member)
             res = setcookietoken(token)
             res.status_code = status.HTTP_201_CREATED
             res.data = serializer.data
@@ -76,42 +78,160 @@ class LoginView(APIView):
     def get(self, request):
         return Response(status=status.HTTP_200_OK)
     def post(self, request):
-        
-        name = request.data.get('name')
-        passwor = request.data.get('password')
-        member = Member.objects.filter(name=name).first()
-        librarian = Librarian.objects.filter(name=name).first()
-        
-        if librarian:
-            password = check_password(passwor, librarian.password)
-            if password:    
-                
-                token = LibrarianToken.objects.create(librarian=librarian)
-                res = setcookietoken(token)
-                res.status_code = status.HTTP_200_OK
+        try:
+            print('enter token check')
+            try:
+                user = request.data.get('name')
+            except Exception as e:
+                print(e)
+                return None
+            muser = Member.objects.filter(name=user).first()
+            luser = Librarian.objects.filter(name=user).first()
+            mtoken = MemberToken.objects.filter(member=muser).first()
+            ltoken = LibrarianToken.objects.filter(librarian=luser).first()
+            if mtoken:
+                res = Response({'message':'Already logged in other browser'},status=status.HTTP_400_BAD_REQUEST)
                 return res
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        elif member:
+            elif ltoken:
+                res = Response({'message':'Already logged in other browser'},status=status.HTTP_400_BAD_REQUEST)
+                return res
+            else:
+                name = request.data.get('name')
+                passwor = request.data.get('password')
+                member = Member.objects.filter(name=name).first()
+                librarian = Librarian.objects.filter(name=name).first()
+                
+                if librarian:
+                    password = check_password(passwor, librarian.password)
+                    if password:    
+                        
+                        token = LibrarianToken.objects.create(librarian=librarian)
+                        res = setcookietoken(token)
+                        res.status_code = status.HTTP_200_OK
+                        context={'message':'Successfully logged in'}
+                        res.data = context
+                        return res
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
+                elif member:
+                    
+                    password = check_password(passwor, member.password)
+                    if password:
+                        
+                        token = MemberToken.objects.create(member=member)
+                        res = setcookietoken(token)
+                        res.status_code = status.HTTP_200_OK
+                        context={'message':'Successfully logged in'}
+                        res.data = context
+                        return res
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
+                return Response(status=status.HTTP_404_NOT_FOUND)
+    
+        except Exception as e:
+            name = request.data.get('name')
+            passwor = request.data.get('password')
+            member = Member.objects.filter(name=name).first()
+            librarian = Librarian.objects.filter(name=name).first()
             
-            password = check_password(passwor, member.password)
-            if password:
+            if librarian:
+                password = check_password(passwor, librarian.password)
+                if password:    
+                    
+                    token = LibrarianToken.objects.create(librarian=librarian)
+                    res = setcookietoken(token)
+                    res.status_code = status.HTTP_200_OK
+                    context={'message':'Successfully logged in'}
+                    res.data = context
+                    return res
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+            elif member:
                 
-                token = MemberToken.objects.create(member=member)
-                res = setcookietoken(token)
-                res.status_code = status.HTTP_200_OK
-                return res
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_404_NOT_FOUND)
+                password = check_password(passwor, member.password)
+                if password:
+                    
+                    token = MemberToken.objects.create(member=member)
+                    res = setcookietoken(token)
+                    res.status_code = status.HTTP_200_OK
+                    context={'message':'Successfully logged in'}
+                    res.data = context
+                    return res
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_404_NOT_FOUND)
     
 @method_decorator(login_required, name='dispatch')
 class LogoutView(APIView):
     def get(self, request):
         try:
+            print(request.user,'logout')
             res = Response({'message':'Successfully logged out'},status=status.HTTP_200_OK)
+            token = request.COOKIES.get('token')
+            if token:
+                mtoken = MemberToken.objects.filter(token=token).first()
+                if mtoken:
+                    mtoken.delete()
+                    
+                ltoken = LibrarianToken.objects.filter(token=token).first()
+                if ltoken:
+                    ltoken.delete()
+                    
             res.delete_cookie('token')
             return res
         except Exception as e:
             return Response({'error':e},status=status.HTTP_400_BAD_REQUEST)
+
+listofemails = []
+
+class forgotpassword(APIView):
+    def get(self, request):
+
+        return Response(status=status.HTTP_200_OK)
+    def post(self, request):
+        email = request.data.get('email')
+        member = Member.objects.filter(email=email).first()
+        librarian = Librarian.objects.filter(email=email).first()
+        subject = 'Password Reset Request'
+        message = 'You have requested to reset your password. Click the link below to set a new password:\n\n' + 'http://127.0.0.1:8000/resetpassword/'
+        recipient_email = email
+        if member or librarian:
+            try:
+                send_mail(
+                    subject,
+                    message,
+                    settings.DEFAULT_FROM_EMAIL, 
+                    [recipient_email], 
+                    fail_silently=False 
+                )
+                listofemails.append(recipient_email)
+                return Response({'success': 'Email sent successfully'})
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else :
+            return Response({'error': 'User not found of this email'}, status=status.HTTP_404_NOT_FOUND)
+
+class resetpassword(APIView):
+    def get(self, request):
+        return Response(status=status.HTTP_200_OK)
+    def post(self, request):
+        newpassword = request.data.get('newpassword')
+        confirmpassword = request.data.get('confirmpassword')
+        email = listofemails[0]
+        if newpassword == confirmpassword:
+            print('right')
+            member = Member.objects.filter(email=email).first()
+            librarian = Librarian.objects.filter(email=email).first()
+            if member:
+                member.password = make_password(newpassword)
+                member.save()
+                listofemails.clear()
+                print('set')
+                return Response({'success': 'Password reset successfully'},status=status.HTTP_200_OK)
+            elif librarian:
+                librarian.password = make_password(newpassword)
+                librarian.save()
+                listofemails.clear()
+                return Response({'success': 'Password reset successfully'},status=status.HTTP_200_OK)
+            else:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
 
 class BookList(APIView):
     def get(self, request):
