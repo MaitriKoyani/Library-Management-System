@@ -180,6 +180,7 @@ class LogoutView(APIView):
 
 listofemails = []
 
+@method_decorator(check_login, name='dispatch')
 class forgotpassword(APIView):
     def get(self, request):
 
@@ -207,6 +208,7 @@ class forgotpassword(APIView):
         else :
             return Response({'error': 'User not found of this email'}, status=status.HTTP_404_NOT_FOUND)
 
+@method_decorator(check_login, name='dispatch')
 class resetpassword(APIView):
     def get(self, request):
         return Response(status=status.HTTP_200_OK)
