@@ -19,8 +19,8 @@ urlpatterns = [
     path('logout/', views.LogoutView().as_view(), name='logout'),
     path('', TemplateView.as_view(template_name='base.html'), name='base'),
     path('home/', TemplateView.as_view(template_name='home.html'), name='home'),
-    path('login/', TemplateView.as_view(template_name='home.html'), name='login'),
-    path('logout/', TemplateView.as_view(template_name='home.html'), name='logout'),
+    # path('login/', TemplateView.as_view(template_name='home.html'), name='login'),
+    # path('logout/', TemplateView.as_view(template_name='home.html'), name='logout'),
     path('forgotpassword/', views.forgotpassword.as_view(), name='forgotpassword'),
     path('resetpassword/', views.resetpassword.as_view(), name='resetpassword'),
 
